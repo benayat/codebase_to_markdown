@@ -1,4 +1,5 @@
-# main.py for project_to_markdown package
+#!/usr/bin/env python
+# project_to_markdown.py
 # Export a (filtered) project into a single Markdown file with a tree view and code fences.
 # Includes:
 # - Robust extension matching (".py", "py", "*.py" all work)
