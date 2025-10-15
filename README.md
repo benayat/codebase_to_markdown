@@ -70,7 +70,7 @@ project-to-markdown --root my_project --output my_project.md --title "My Project
 
 ### Import Example
 ```sh
-python -m project_to_markdown.markdown_to_project -i my_project.md -o recreated_project --overwrite
+markdown-to-project -i my_project.md -o recreated_project --overwrite
 ```
 
 ## Project Structure
@@ -95,4 +95,4 @@ MIT License
 ---
 
 Created by Benaya Trabelsi. Contributions welcome!
-
+benaya7@gmail.com
