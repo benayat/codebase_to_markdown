@@ -7,4 +7,7 @@ project_to_markdown.egg-info/PKG-INFO
 project_to_markdown.egg-info/SOURCES.txt
 project_to_markdown.egg-info/dependency_links.txt
 project_to_markdown.egg-info/entry_points.txt
+project_to_markdown.egg-info/requires.txt
 project_to_markdown.egg-info/top_level.txt
+tests/test_project_to_markdown_collection.py
+tests/test_project_to_markdown_helpers.py

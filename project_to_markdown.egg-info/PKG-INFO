@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: project-to-markdown
-Version: 0.1.7
+Version: 0.1.11
 Summary: Export a Python project into a single Markdown file.
 Author-email: Benaya Trabelsi <benaya7@email.com>
 Project-URL: Homepage, https://github.com/benayat/codebase_to_markdown
@@ -15,6 +15,7 @@ Classifier: Programming Language :: Python :: 3.12
 Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
 Requires-Python: >=3.7
 Description-Content-Type: text/markdown
+Requires-Dist: pytest>=7.4.4
 
 # project-to-markdown
 

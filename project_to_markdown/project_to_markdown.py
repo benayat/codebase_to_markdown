@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import io
+import logging
 import shutil
 import subprocess
 from pathlib import Path
@@ -41,6 +42,8 @@ _EXT_TO_LANG = {
     ".toml": "toml", ".ini": "", ".cfg": "", ".txt": "", ".sh": "bash",
     ".js": "javascript", ".ts": "typescript", ".html": "html", ".css": "css",
 }
+
+_LOGGER = logging.getLogger("project_to_markdown")
 
 
 # ---------- CLI ----------
@@ -101,6 +104,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-lines", type=int, default=0,
         help="Maximum number of lines to include per file (0 = unlimited).",
+    )
+    parser.add_argument(
+        "--debug", action="store_true",
+        help="Enable debug logging to trace inclusion/exclusion decisions.",
     )
     return parser.parse_args()
 
@@ -208,6 +215,7 @@ def _git_ls_files(root: Path, include_untracked: bool) -> List[Path]:
 
 # ---------- Core ----------
 
+
 def build_tree_from_scan(
     root: Path,
     exclude_dirs: set,
@@ -221,6 +229,11 @@ def build_tree_from_scan(
     Honors ancestor dir excludes, file excludes, ext patterns, and size.
     """
     structure: List[Tuple[Path, bool]] = []
+    dirs_pruned = 0
+    files_skipped_parent = 0
+    files_skipped_name = 0
+    files_skipped_ext = 0
+    files_skipped_size = 0
     for path in sorted(root.rglob("*")):
         if path.is_symlink():
             continue
@@ -228,24 +241,39 @@ def build_tree_from_scan(
             # Exclude if this dir or any ancestor matches a pattern
             if prune_excluded_dirs:
                 if any(fnmatch.fnmatch(path.name, pat) for pat in exclude_dirs):
+                    dirs_pruned += 1
                     continue
                 if any(any(fnmatch.fnmatch(parent.name, pat) for pat in exclude_dirs) for parent in path.parents):
+                    dirs_pruned += 1
                     continue
             structure.append((path, True))
         else:
             # File gatekeeping
             if any(any(fnmatch.fnmatch(parent.name, pat) for pat in exclude_dirs) for parent in path.parents):
+                files_skipped_parent += 1
                 continue
             if any(fnmatch.fnmatch(path.name, pat) for pat in exclude_files):
+                files_skipped_name += 1
                 continue
             if include_patterns and not _matches_ext(path, include_patterns):
+                files_skipped_ext += 1
                 continue
             try:
                 if max_bytes and path.stat().st_size > max_bytes:
+                    files_skipped_size += 1
                     continue
             except OSError:
                 continue
             structure.append((path, False))
+    _LOGGER.debug(
+        "tree scan: kept=%s dirs_pruned=%s skipped_parent=%s skipped_name=%s skipped_ext=%s skipped_size=%s",
+        len(structure),
+        dirs_pruned,
+        files_skipped_parent,
+        files_skipped_name,
+        files_skipped_ext,
+        files_skipped_size,
+    )
     return structure
 
 
@@ -314,24 +342,47 @@ def collect_files(
         return [p for p in root.rglob("*") if p.is_file() and not p.is_symlink()]
 
     results: List[Path] = []
-    for path in sorted(candidate_files()):
+    candidates = sorted(candidate_files())
+    skipped_parent = 0
+    skipped_name = 0
+    skipped_ext = 0
+    skipped_size = 0
+    for path in candidates:
         # Ancestor dir excludes
         if any(any(fnmatch.fnmatch(parent.name, pat) for pat in exclude_dirs) for parent in path.parents):
+            skipped_parent += 1
             continue
         # File name excludes
         if any(fnmatch.fnmatch(path.name, pat) for pat in exclude_files):
+            skipped_name += 1
             continue
         # Extension / pattern filter
         if include_patterns and not _matches_ext(path, include_patterns):
+            skipped_ext += 1
             continue
         try:
             size = path.stat().st_size
         except OSError:
             continue
         if max_bytes and size > max_bytes:
+            skipped_size += 1
             continue
         results.append(path)
+    _LOGGER.debug(
+        "collect files: candidates=%s kept=%s skipped_parent=%s skipped_name=%s skipped_ext=%s skipped_size=%s",
+        len(candidates),
+        len(results),
+        skipped_parent,
+        skipped_name,
+        skipped_ext,
+        skipped_size,
+    )
     return results
+
+
+def _configure_logging(debug: bool) -> None:
+    level = logging.DEBUG if debug else logging.WARNING
+    logging.basicConfig(level=level, format="[%(levelname)s] %(message)s")
 
 
 def write_markdown(
@@ -343,6 +394,7 @@ def write_markdown(
     max_lines: int = 0,
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    _LOGGER.debug("writing markdown: output=%s files=%s", out_path, len(files))
     with io.open(out_path, "w", encoding="utf-8") as md_file:
         # Title
         md_file.write(f"# {title}\n\n")
@@ -379,12 +431,16 @@ def write_markdown(
 
 # ---------- Main ----------
 
+
 def main() -> None:
     args = parse_args()
+    _configure_logging(bool(args.debug))
 
     root: Path = args.root.resolve()
     if not root.exists() or not root.is_dir():
         raise SystemExit(f"[error] Root directory not found: {root}")
+
+    _LOGGER.debug("root=%s", root)
 
     # Include patterns
     include_exts_raw = {e.strip().lower() for e in args.include_exts.split(",") if e.strip()}
@@ -396,6 +452,15 @@ def main() -> None:
 
     exclude_dirs = set(user_ex_dirs) if args.no_default_excludes else (set(DEFAULT_EXCLUDED_DIRS) | set(user_ex_dirs))
     exclude_files = set(user_ex_files) if args.no_default_excludes else (set(DEFAULT_EXCLUDED_FILES) | set(user_ex_files))
+    _LOGGER.debug(
+        "filters: include_patterns=%s exclude_dirs=%s exclude_files=%s use_gitignore=%s all_files=%s prune_excluded_dirs=%s",
+        include_patterns,
+        sorted(exclude_dirs),
+        sorted(exclude_files),
+        args.use_gitignore,
+        bool(args.all_files),
+        not args.no_prune_dirs,
+    )
 
     # Collect files first (so tree can mirror exactly if requested)
     files = collect_files(
