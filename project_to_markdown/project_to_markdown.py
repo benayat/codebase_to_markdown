@@ -79,6 +79,10 @@ def parse_args() -> argparse.Namespace:
         help="Do NOT apply the built-in default exclude patterns for dirs/files.",
     )
     parser.add_argument(
+        "--no-prune-dirs", action="store_true",
+        help="Do not prune recursion into excluded dirs; still apply file filters.",
+    )
+    parser.add_argument(
         "--use-gitignore", action="store_true",
         help="Use Git to respect .gitignore (and optionally include untracked files).",
     )
@@ -210,6 +214,7 @@ def build_tree_from_scan(
     exclude_files: set,
     include_patterns: List[str],
     max_bytes: int,
+    prune_excluded_dirs: bool,
 ) -> List[Tuple[Path, bool]]:
     """
     Filesystem scan producing a list of (Path, is_dir) entries for a tree view.
@@ -221,15 +226,17 @@ def build_tree_from_scan(
             continue
         if path.is_dir():
             # Exclude if this dir or any ancestor matches a pattern
-            if any(fnmatch.fnmatch(path.name, pat) for pat in exclude_dirs):
-                continue
-            if any(any(fnmatch.fnmatch(parent.name, pat) for pat in exclude_dirs) for parent in path.parents):
-                continue
+            if prune_excluded_dirs:
+                if any(fnmatch.fnmatch(path.name, pat) for pat in exclude_dirs):
+                    continue
+                if any(any(fnmatch.fnmatch(parent.name, pat) for pat in exclude_dirs) for parent in path.parents):
+                    continue
             structure.append((path, True))
         else:
             # File gatekeeping
-            if any(any(fnmatch.fnmatch(parent.name, pat) for pat in exclude_dirs) for parent in path.parents):
-                continue
+            if prune_excluded_dirs:
+                if any(any(fnmatch.fnmatch(parent.name, pat) for pat in exclude_dirs) for parent in path.parents):
+                    continue
             if any(fnmatch.fnmatch(path.name, pat) for pat in exclude_files):
                 continue
             if include_patterns and not _matches_ext(path, include_patterns):
@@ -293,6 +300,7 @@ def collect_files(
     use_gitignore: bool,
     all_files: bool,
     max_bytes: int,
+    prune_excluded_dirs: bool,
 ) -> List[Path]:
     """
     Collect actual files to export. Prefer Git when asked, else fallback to rglob.
@@ -309,8 +317,9 @@ def collect_files(
     results: List[Path] = []
     for path in sorted(candidate_files()):
         # Ancestor dir excludes
-        if any(any(fnmatch.fnmatch(parent.name, pat) for pat in exclude_dirs) for parent in path.parents):
-            continue
+        if prune_excluded_dirs:
+            if any(any(fnmatch.fnmatch(parent.name, pat) for pat in exclude_dirs) for parent in path.parents):
+                continue
         # File name excludes
         if any(fnmatch.fnmatch(path.name, pat) for pat in exclude_files):
             continue
@@ -399,6 +408,7 @@ def main() -> None:
         use_gitignore=args.use_gitignore,
         all_files=bool(args.all_files),
         max_bytes=int(args.max_bytes),
+        prune_excluded_dirs=not args.no_prune_dirs,
     )
 
     # Build tree entries
@@ -411,6 +421,7 @@ def main() -> None:
             exclude_files=exclude_files,
             include_patterns=include_patterns,
             max_bytes=int(args.max_bytes),
+            prune_excluded_dirs=not args.no_prune_dirs,
         )
 
     structure_paths = [p for p, _is_dir in structure_entries]
