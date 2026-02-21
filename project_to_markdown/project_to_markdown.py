@@ -234,9 +234,8 @@ def build_tree_from_scan(
             structure.append((path, True))
         else:
             # File gatekeeping
-            if prune_excluded_dirs:
-                if any(any(fnmatch.fnmatch(parent.name, pat) for pat in exclude_dirs) for parent in path.parents):
-                    continue
+            if any(any(fnmatch.fnmatch(parent.name, pat) for pat in exclude_dirs) for parent in path.parents):
+                continue
             if any(fnmatch.fnmatch(path.name, pat) for pat in exclude_files):
                 continue
             if include_patterns and not _matches_ext(path, include_patterns):
@@ -317,9 +316,8 @@ def collect_files(
     results: List[Path] = []
     for path in sorted(candidate_files()):
         # Ancestor dir excludes
-        if prune_excluded_dirs:
-            if any(any(fnmatch.fnmatch(parent.name, pat) for pat in exclude_dirs) for parent in path.parents):
-                continue
+        if any(any(fnmatch.fnmatch(parent.name, pat) for pat in exclude_dirs) for parent in path.parents):
+            continue
         # File name excludes
         if any(fnmatch.fnmatch(path.name, pat) for pat in exclude_files):
             continue
