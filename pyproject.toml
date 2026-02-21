@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "project-to-markdown"
-version = "0.1.12"
+version = "0.1.13"
 description = "Export a Python project into a single Markdown file."
 authors = [{name = "Benaya Trabelsi", email = "benaya7@email.com"}]
 readme = "README.md"
