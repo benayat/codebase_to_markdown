@@ -11,8 +11,10 @@ from pathlib import Path
 
 
 def _normalize_parsed_path(path_str: str) -> str:
-    """Remove trailing backticks from each path segment."""
-    return re.sub(r"`+(?=(?:[\\/]|$))", "", path_str.strip())
+    """Remove wrapping and segment-trailing backticks from parsed paths."""
+    normalized = path_str.strip().strip("`")
+    normalized = re.sub(r"(?:(?<=^)|(?<=[\\/]))`+", "", normalized)
+    return re.sub(r"`+(?=(?:[\\/]|$))", "", normalized)
 
 
 def parse_markdown_to_files(markdown_content: str) -> dict[str, str]:
