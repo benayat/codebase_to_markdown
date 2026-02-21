@@ -10,6 +10,11 @@ import re
 from pathlib import Path
 
 
+def _normalize_parsed_path(path_str: str) -> str:
+    """Remove trailing backticks from each path segment."""
+    return re.sub(r"`+(?=(?:[\\/]|$))", "", path_str.strip())
+
+
 def parse_markdown_to_files(markdown_content: str) -> dict[str, str]:
     """
     Parses markdown content to extract file paths and their code blocks.
@@ -28,7 +33,7 @@ def parse_markdown_to_files(markdown_content: str) -> dict[str, str]:
     files: dict[str, str] = {}
     for match in pattern.finditer(markdown_content):
         # Group 1: The file path (e.g., ".gitignore")
-        path_str = match.group(1).strip().rstrip("`")
+        path_str = _normalize_parsed_path(match.group(1))
 
         # Group 2: The file content
         content = match.group(2)
